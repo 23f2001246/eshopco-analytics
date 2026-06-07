@@ -6,7 +6,7 @@ import numpy as np
 
 app = FastAPI()
 
-# CORS
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -40,7 +40,7 @@ async def analytics(request: Request):
     regions = req["regions"]
     threshold_ms = req["threshold_ms"]
 
-    result = {}
+    results = []
 
     for region in regions:
         rows = [r for r in DATA if r["region"] == region]
@@ -51,14 +51,15 @@ async def analytics(request: Request):
         latencies = [r["latency_ms"] for r in rows]
         uptimes = [r["uptime_pct"] for r in rows]
 
-        result[region] = {
+        results.append({
+            "region": region,
             "avg_latency": round(sum(latencies) / len(latencies), 2),
             "p95_latency": round(float(np.percentile(latencies, 95)), 2),
             "avg_uptime": round(sum(uptimes) / len(uptimes), 3),
             "breaches": sum(
                 1 for r in rows
                 if r["latency_ms"] > threshold_ms
-            ),
-        }
+            )
+        })
 
-    return result
+    return {"regions": results}
