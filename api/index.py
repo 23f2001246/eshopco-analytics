@@ -1,17 +1,19 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 from pathlib import Path
 import json
 import numpy as np
 
 app = FastAPI()
 
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["POST"],
+    allow_credentials=False,
+    allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # Load telemetry data
@@ -21,16 +23,26 @@ with open(DATA_PATH, "r", encoding="utf-8") as f:
     DATA = json.load(f)
 
 
-class RequestBody(BaseModel):
-    regions: list[str]
-    threshold_ms: float
+@app.options("/")
+def options():
+    return Response(status_code=200)
+
+
+@app.get("/")
+def root():
+    return {"message": "eShopCo Analytics API running"}
 
 
 @app.post("/")
-def analytics(req: RequestBody):
+async def analytics(request: Request):
+    req = await request.json()
+
+    regions = req["regions"]
+    threshold_ms = req["threshold_ms"]
+
     result = {}
 
-    for region in req.regions:
+    for region in regions:
         rows = [r for r in DATA if r["region"] == region]
 
         if not rows:
@@ -45,13 +57,8 @@ def analytics(req: RequestBody):
             "avg_uptime": round(sum(uptimes) / len(uptimes), 3),
             "breaches": sum(
                 1 for r in rows
-                if r["latency_ms"] > req.threshold_ms
+                if r["latency_ms"] > threshold_ms
             ),
         }
 
     return result
-
-
-@app.get("/")
-def root():
-    return {"message": "eShopCo Analytics API running"}
